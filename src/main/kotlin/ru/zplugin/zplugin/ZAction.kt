@@ -1,17 +1,27 @@
 package ru.zplugin.zplugin
 
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.components.serviceOrNull
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogBuilder
 import com.intellij.openapi.util.TextRange
-import javax.swing.DefaultBoundedRangeModel
+import com.intellij.testFramework.registerOrReplaceServiceInstance
+import com.intellij.util.ui.JBDimension
+import javax.swing.Box
+import javax.swing.BoxLayout
+import javax.swing.JPanel
 import javax.swing.JProgressBar
 
 private val Log = logger<ZAction>()
 
 class ZAction : AnAction() {
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
         super.update(e)
@@ -24,11 +34,18 @@ class ZAction : AnAction() {
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project
+        val project = e.project ?: run {
+            Log.info("project is null")
+            return
+        }
         val editor = e.getData(CommonDataKeys.EDITOR) ?: run {
             Log.info("editor is null")
             return
         }
+
+        val (builder, progress) = getDialogProgressBuilder()
+
+        val zService = getSvgService(project = project)
 
         val document = editor.document
         val primaryCaret = editor.caretModel.primaryCaret
@@ -37,41 +54,53 @@ class ZAction : AnAction() {
 
         val text = document.getText(TextRange(start, end))
 
-        if (TAG_REGEX.containsMatchIn(text)) {
-            return
-        }
-
-        val tagPieces = text.split(SPLIT_REGEX)
-
-        if (tagPieces.size != 2) {
-            return
-        }
-
-        val pathData = SPLIT_REGEX.find(text)
-            ?.value
-            ?.drop(17)
-            ?.split("z", ignoreCase = true)
-            ?: return
-
-        val result = pathData.fold("") { acc, path ->
-            if (path.isNotBlank() && path != "\"") {
-                acc + tagPieces.first() + "android:pathData=${"\"".takeIf { path.first() != '\"' } ?: ""}" + path + "z\"" + tagPieces.last() + "\n"
-            } else {
-                acc
+        zService.removeZ(
+            text = text,
+            progressConsumer = { currentProgress ->
+               progress.value = currentProgress
+            },
+            hideDialog = {
+                builder.dialogWrapper.doCancelAction()
+            }
+        ) { handledText ->
+            WriteCommandAction.runWriteCommandAction(project) {
+                document.replaceString(start, end, handledText)
             }
         }
 
-        WriteCommandAction.runWriteCommandAction(project) {
-            document.replaceString(start, end, result)
+        builder.addDisposable {
+            zService.cancel()
         }
-
         Log.info("call actionPerformed")
+        builder.show()
+    }
+
+    private fun getSvgService(project: Project): ISvgServiceEditor {
+        return project.serviceOrNull<ISvgServiceEditor>() ?: run {
+            Log.info("create new service!!!")
+            SvgServiceEditor.getInstance(project).also { zService ->
+                project.registerOrReplaceServiceInstance(ISvgServiceEditor::class.java, zService) {
+                    Log.info("DISPOSE SERVICE")
+                }
+            }
+        }
+    }
+
+    private fun getDialogProgressBuilder(): Pair<DialogBuilder, JProgressBar> {
+        val builder = DialogBuilder()
+        builder.addCancelAction()
+        builder.title(buildString { append("Make more path`s by z split") })
+        val dialogPanel = JPanel()
+        dialogPanel.layout = BoxLayout(dialogPanel, BoxLayout.Y_AXIS)
+        val progress = JProgressBar(0, 0, 100)
+        dialogPanel.add(Box.createRigidArea(JBDimension(40, 30)))
+        dialogPanel.add(progress)
+        dialogPanel.add(Box.createRigidArea(JBDimension(40, 30)))
+        builder.setCenterPanel(dialogPanel)
+        return builder to progress
     }
 }
 
-private val TAG_REGEX = "<path(\\s|$)+/>".toRegex()
-
-private val SPLIT_REGEX = "android:pathData=(.+\")?".toRegex()
 
 //<path
 //android:fillColor="#1a1a1a"
