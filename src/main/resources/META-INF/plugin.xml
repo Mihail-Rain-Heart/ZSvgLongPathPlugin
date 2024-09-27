@@ -28,6 +28,8 @@
         <projectService
                 serviceInterface="ru.zplugin.zplugin.ISvgServiceEditor"
                 serviceImplementation="ru.zplugin.zplugin.SvgServiceEditor"/>
+        <notificationGroup id="Z notification"
+                           displayType="BALLOON"/>
     </extensions>
     <actions>
         <action icon="/icons/pluginIcon.svg" id="ru.zplugin.zplugin.ZAction" class="ru.zplugin.zplugin.ZAction"
