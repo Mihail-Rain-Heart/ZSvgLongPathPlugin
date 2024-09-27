@@ -1,4 +1,4 @@
-package ru.zplugin.zplugin
+package ru.zplugin.zplugin.domain
 
 import com.intellij.openapi.project.Project
 import java.util.function.Consumer

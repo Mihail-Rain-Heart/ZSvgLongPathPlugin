@@ -26,8 +26,8 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <projectService
-                serviceInterface="ru.zplugin.zplugin.ISvgServiceEditor"
-                serviceImplementation="ru.zplugin.zplugin.SvgServiceEditor"/>
+                serviceInterface="ru.zplugin.zplugin.domain.ISvgServiceEditor"
+                serviceImplementation="ru.zplugin.zplugin.domain.SvgServiceEditor"/>
         <notificationGroup id="Z notification"
                            displayType="BALLOON"/>
     </extensions>
