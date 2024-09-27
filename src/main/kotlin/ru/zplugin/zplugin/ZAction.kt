@@ -4,6 +4,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.serviceOrNull
 import com.intellij.openapi.diagnostic.logger
@@ -55,6 +56,7 @@ class ZAction : AnAction() {
         val text = document.getText(TextRange(start, end))
 
         zService.removeZ(
+            project = project,
             text = text,
             progressConsumer = { currentProgress ->
                progress.value = currentProgress
