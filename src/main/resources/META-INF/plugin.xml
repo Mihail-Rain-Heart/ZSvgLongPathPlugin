@@ -16,7 +16,12 @@
     <description><![CDATA[
         <h2>Getting Started</h2>
         <h3><b>How to use?</b></h3>
-        <div><img src="https://github.com/Mihail-Rain-Heart/ZSvgLongPathPlugin/blob/main/src/main/resources/assets/getting_started.gif" /></div>
+        <ul>
+            <li>Select 1 path tag with long path warning</li>
+            <li>Right click on mouse</li>
+            <li>In dropdown context menu select plugin action</li>
+        </ul>
+        <div><img src="https://github.com/Mihail-Rain-Heart/ZSvgLongPathPlugin/blob/main/src/main/resources/assets/getting_started.png" /></div>
         <strong>Restrictions</strong>
         <p>Unsupported multi cursor! Also you need select only one tag at a time. Look at the gif.</p>
         <h3><b>Why plugin work finish, but long path still warn?</b></h3>
