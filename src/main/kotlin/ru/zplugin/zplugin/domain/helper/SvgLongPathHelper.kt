@@ -1,15 +1,16 @@
 package ru.zplugin.zplugin.domain.helper
 
-import ru.zplugin.zplugin.domain.error.ZException
-import java.util.function.Consumer
-import kotlin.math.roundToInt
+import ru.zplugin.zplugin.domain.error.ZSvgLongPathException
 
-internal class SvgPathHelper {
+internal class SvgLongPathHelper {
 
-    @Throws(ZException::class)
-    fun getSplitByZText(text: String, progressConsumer: Consumer<Int>): String {
+    @Throws(ZSvgLongPathException::class)
+    suspend fun getSplitByZText(
+        text: String,
+        progressConsumer: suspend (Double) -> Unit
+    ): String {
         if (isUnsupported(text = text)) {
-            throw ZException.UnsupportedTagOrData
+            throw ZSvgLongPathException.UnsupportedTagOrData
         }
         // cut PATH_DATA from tag
         val (startPieceOfTag, endPieceOfTag) = getTwoPiecesFromTag(text = text)
@@ -23,50 +24,55 @@ internal class SvgPathHelper {
         )
     }
 
-    @Throws(ZException.NotCreateTwoPiecesFromTag::class)
+    @Throws(ZSvgLongPathException.NotCreateTwoPiecesFromTag::class)
     private fun getTwoPiecesFromTag(text: String): Pair<String, String> {
         val pieces = text.split(SPLIT_REGEX)
         return if (pieces.size == 2) {
             pieces.first() to pieces.last()
         } else {
-            throw ZException.NotCreateTwoPiecesFromTag
+            throw ZSvgLongPathException.NotCreateTwoPiecesFromTag
         }
     }
 
-    @Throws(ZException.NotFoundPathDataTag::class)
+    @Throws(ZSvgLongPathException.NotFoundPathDataTag::class)
     private fun getPathData(text: String): List<String> {
         return SPLIT_REGEX.find(text)
             ?.value
             ?.drop(PATH_DATA.length)
             ?.split(DELIMITER, ignoreCase = true)
-            ?: throw ZException.NotFoundPathDataTag
+            ?: throw ZSvgLongPathException.NotFoundPathDataTag
     }
 
-    private fun getSplitByZText(
+    private suspend fun getSplitByZText(
         startPieceOfTag: String,
         endPieceOfTag: String,
         pathData: List<String>,
-        progressConsumer: Consumer<Int>
+        progressConsumer: suspend (Double) -> Unit
     ): String {
         val pathDataSize = pathData.size
             .toFloat()
-            .coerceAtLeast(minimumValue = 1f)
+            .coerceAtLeast(minimumValue = MAX_PERCENT_F)
         val builder = SplitZTagBuilder(
             startPieceOfTag = startPieceOfTag,
             endPieceOfTag = endPieceOfTag
         )
-        return pathData.foldIndexed(initial = "") { index, acc, path ->
-            progressConsumer.accept(
-                ((index / pathDataSize) * MAX_PERCENT)
-                    .roundToInt()
-                    .coerceAtMost(MAX_PERCENT)
-            )
+
+        val stringBuilder = StringBuilder()
+
+        pathData.forEachIndexed { index, path ->
+            if (index % MAX_PERCENT == 0 || index == pathData.size - 1) {
+                progressConsumer(
+                    (index / pathDataSize)
+                        .coerceAtMost(maximumValue = MAX_PERCENT_F)
+                        .toDouble()
+                )
+            }
+
             if (path.isNotBlank() && path != "\"") {
-                acc + builder.build(path = path)
-            } else {
-                acc
+                stringBuilder.append(builder.build(path))
             }
         }
+        return stringBuilder.toString()
     }
 
     private fun isUnsupported(text: String) = !TAG_REGEX.containsMatchIn(text)
@@ -81,17 +87,20 @@ internal class SvgPathHelper {
         }
 
         fun build(path: String): String {
-            return startPieceOfTag +
-                    getAttributeName(path = path) +
-                    path +
-                    "$DELIMITER\"" +
-                    endPieceOfTag +
-                    "\n"
+            return StringBuilder().apply {
+                append(startPieceOfTag)
+                append(getAttributeName(path = path))
+                append(path)
+                append("$DELIMITER\"")
+                append(endPieceOfTag)
+                append("\n")
+            }.toString()
         }
     }
 }
 
 private const val MAX_PERCENT = 100
+private const val MAX_PERCENT_F = 1f
 
 private const val DELIMITER = "z"
 
