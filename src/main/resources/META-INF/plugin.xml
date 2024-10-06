@@ -26,13 +26,13 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <projectService
-                serviceInterface="ru.zplugin.zplugin.domain.ISvgServiceEditor"
-                serviceImplementation="ru.zplugin.zplugin.domain.SvgServiceEditor"/>
+                serviceInterface="ru.zplugin.zplugin.domain.ISvgLongPathServiceEditor"
+                serviceImplementation="ru.zplugin.zplugin.domain.SvgLongPathServiceEditor"/>
         <notificationGroup id="Z notification"
                            displayType="BALLOON"/>
     </extensions>
     <actions>
-        <action icon="/icons/pluginIcon.svg" id="ru.zplugin.zplugin.ZAction" class="ru.zplugin.zplugin.ZAction"
+        <action icon="/icons/pluginIcon.svg" id="ru.zplugin.zplugin.ZSvgLongPathAction" class="ru.zplugin.zplugin.ZSvgLongPathAction"
                 text="SplitZ"
                 description="Refactor long path by z">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
