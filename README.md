@@ -13,7 +13,7 @@ Unlike other plugins, the logic of this plugin is to split a long path into mult
 - Right click on mouse
 - In dropdown context menu select plugin action
 
-![How to use animation](https://raw.githubusercontent.com/Mihail-Rain-Heart/ZSvgLongPathPlugin/refs/heads/main/src/main/resources/assets/getting_started.gif)
+![How to use animation](src/main/resources/assets/getting_started.gif)
 
 ### Restrictions
 Unsupported multi cursor! Also you need select only one tag at a time. Look at the gif.
