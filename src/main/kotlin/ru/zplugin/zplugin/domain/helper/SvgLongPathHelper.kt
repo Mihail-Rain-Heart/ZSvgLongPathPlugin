@@ -1,110 +1,89 @@
 package ru.zplugin.zplugin.domain.helper
 
-import ru.zplugin.zplugin.domain.error.ZSvgLongPathException
+import ru.zplugin.zplugin.domain.parser.SvgPathSplitter
 
 internal class SvgLongPathHelper {
-
-    @Throws(ZSvgLongPathException::class)
-    suspend fun getSplitByZText(
+    suspend fun getSplitText(
         text: String,
-        progressConsumer: suspend (Double) -> Unit
-    ): String {
-        if (isUnsupported(text = text)) {
-            throw ZSvgLongPathException.UnsupportedTagOrData
+        progressConsumer: suspend (stage: String, step: String?, progress: Double) -> Unit,
+    ): String? {
+        progressConsumer("Searching tags", null, 0.0)
+        val tags = TAG_REGEX.findAll(text).filter { !it.value.contains(EVEN_ODD_REGEX) }.toList()
+        if (tags.isEmpty()) {
+            return null
         }
-        // cut PATH_DATA from tag
-        val (startPieceOfTag, endPieceOfTag) = getTwoPiecesFromTag(text = text)
-        // get content of PATH_DATA attribute
-        val pathData = getPathData(text = text)
-        return getSplitByZText(
-            startPieceOfTag = startPieceOfTag,
-            endPieceOfTag = endPieceOfTag,
-            pathData = pathData,
-            progressConsumer = progressConsumer
-        )
-    }
 
-    @Throws(ZSvgLongPathException.NotCreateTwoPiecesFromTag::class)
-    private fun getTwoPiecesFromTag(text: String): Pair<String, String> {
-        val pieces = text.split(SPLIT_REGEX)
-        return if (pieces.size == 2) {
-            pieces.first() to pieces.last()
-        } else {
-            throw ZSvgLongPathException.NotCreateTwoPiecesFromTag
+        val progressPerElem = (MAX_PROGRESS - SEARCH_PROGRESS) / tags.size
+        val onProgressMade: suspend (Int, Double) -> Unit = { index: Int, progress: Double ->
+            val globalProgress = (SEARCH_PROGRESS + progressPerElem * (index + progress)).coerceAtMost(MAX_PROGRESS)
+            progressConsumer("Splitting tags", "Processed $index/${tags.size}", globalProgress)
         }
-    }
 
-    @Throws(ZSvgLongPathException.NotFoundPathDataTag::class)
-    private fun getPathData(text: String): List<String> {
-        return SPLIT_REGEX.find(text)
-            ?.value
-            ?.drop(PATH_DATA.length)
-            ?.split(DELIMITER, ignoreCase = true)
-            ?: throw ZSvgLongPathException.NotFoundPathDataTag
-    }
-
-    private suspend fun getSplitByZText(
-        startPieceOfTag: String,
-        endPieceOfTag: String,
-        pathData: List<String>,
-        progressConsumer: suspend (Double) -> Unit
-    ): String {
-        val pathDataSize = pathData.size
-            .toFloat()
-            .coerceAtLeast(minimumValue = MAX_PERCENT_F)
-        val builder = SplitZTagBuilder(
-            startPieceOfTag = startPieceOfTag,
-            endPieceOfTag = endPieceOfTag
-        )
-
-        val stringBuilder = StringBuilder()
-
-        pathData.forEachIndexed { index, path ->
-            if (index % MAX_PERCENT == 0 || index == pathData.size - 1) {
-                progressConsumer(
-                    (index / pathDataSize)
-                        .coerceAtMost(maximumValue = MAX_PERCENT_F)
-                        .toDouble()
-                )
+        val builder = StringBuilder(text.length).apply {
+            var lastEnd = 0
+            tags.forEachIndexed { index, tag ->
+                onProgressMade(index, 0.0)
+                val result = splitTag(tag.groupValues[1], tag.groupValues[2], tag.groupValues[3]) {
+                    onProgressMade(index, it)
+                }
+                if (result != null) {
+                    append(text, lastEnd, tag.range.first)
+                    append(result)
+                    lastEnd = tag.range.last + 1
+                }
             }
-
-            if (path.isNotBlank() && path != "\"") {
-                stringBuilder.append(builder.build(path))
+            if (lastEnd != 0) {
+                append(text, lastEnd, text.length)
             }
         }
-        return stringBuilder.toString()
+        return builder.takeIf { it.isNotEmpty() }?.toString()
     }
 
-    private fun isUnsupported(text: String) = !TAG_REGEX.containsMatchIn(text)
+    private suspend fun splitTag(
+        tagStart: String,
+        pathData: String,
+        tagEnd: String,
+        onProgressMade: suspend (progress: Double) -> Unit,
+    ): StringBuilder? {
+        val splitter = SvgPathSplitter(pathData)
+        var tag: SvgPathSplitter.Split? = splitter.next().getOrNull() ?: return null
+        var lastEnd = 0
+        var lastPrefix = ""
 
-    private class SplitZTagBuilder(
-        private val startPieceOfTag: String,
-        private val endPieceOfTag: String
-    ) {
+        return StringBuilder(pathData.length).apply {
+            while (tag != null) {
+                append(tagStart)
+                append(lastPrefix)
+                append(pathData, lastEnd, tag!!.skipStart)
+                append(tagEnd)
+                appendLine()
 
-        private fun getAttributeName(path: String): String {
-            return "$PATH_DATA${"\"".takeIf { path.first() != '\"' }.orEmpty()}"
-        }
+                lastEnd = tag!!.skipEnd
+                lastPrefix = tag!!.newPrefix
+                tag = splitter.next().getOrNull()
+                onProgressMade(lastEnd / pathData.length.toDouble())
+            }
 
-        fun build(path: String): String {
-            return StringBuilder().apply {
-                append(startPieceOfTag)
-                append(getAttributeName(path = path))
-                append(path)
-                append("$DELIMITER\"")
-                append(endPieceOfTag)
-                append("\n")
-            }.toString()
+            if (pathData.length == lastEnd) {
+                deleteAt(lastIndex)
+            } else {
+                append(tagStart)
+                append(lastPrefix)
+                append(pathData, lastEnd, pathData.length)
+                append(tagEnd)
+            }
         }
     }
 }
 
-private const val MAX_PERCENT = 100
-private const val MAX_PERCENT_F = 1f
+private const val MAX_PROGRESS = 1.0
+private const val SEARCH_PROGRESS = 0.3
 
-private const val DELIMITER = "z"
+// One omnipotent regex to rule them (almost) all:
+// - capture whitespaces before tag to match formatting
+// - search only tags with MmZz commands because those are the only possible split points
+private val TAG_REGEX =
+    """([^\S\r\n]*<path\s+[^>]*android:pathData\s*=\s*")([^"MmZz]*[MmZz][^"]*)("[^>]*/>)""".toRegex()
 
-private const val PATH_DATA = "android:pathData="
-
-private val TAG_REGEX = "<path\\s+[^>]*\\b$PATH_DATA\"[^\"]*\"\\s*[^>]*/>".toRegex()
-private val SPLIT_REGEX = "$PATH_DATA(.+\")?".toRegex()
+// separate regex to exclude paths with evenOdd and not make the regex above even more complex
+private val EVEN_ODD_REGEX = """android:fillType\s*=\s*"evenOdd"""".toRegex()
