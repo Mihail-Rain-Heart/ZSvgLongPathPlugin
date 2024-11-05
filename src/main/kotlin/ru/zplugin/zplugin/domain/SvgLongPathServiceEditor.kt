@@ -81,19 +81,25 @@ class SvgLongPathServiceEditor(private val project: Project) : ISvgLongPathServi
             isIndeterminate = false,
             project = project
         ) {
-            val splitByZText = pathHelper.getSplitByZText(text = text) { progress ->
+            val splitText = pathHelper.getSplitText(text = text) { stage, step, progress ->
                 withContext(Dispatchers.Main) {
+                    indicator.text = stage
+                    indicator.text2 = step
                     indicator.fraction = progress
                 }
             }
-            logger.debug("handled: $splitByZText")
+            logger.debug("handled: $splitText")
             withContext(context = Dispatchers.EDT) {
-                ApplicationManager.getApplication().invokeLater {
-                    WriteCommandAction.runWriteCommandAction(project) {
-                        document.replaceString(start, end, splitByZText)
+                if (splitText == null) {
+                    notifier.notifyInfo(project = project, message = "Z Plugin can't split any tags.")
+                } else {
+                    ApplicationManager.getApplication().invokeLater {
+                        WriteCommandAction.runWriteCommandAction(project) {
+                            document.replaceString(start, end, splitText)
+                        }
                     }
+                    notifier.notifyInfo(project = project, message = "Z Plugin work finished!")
                 }
-                notifier.notifyInfo(project = project, message = "Z Plugin work finished!")
             }
         }
     }

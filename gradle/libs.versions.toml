@@ -1,9 +1,13 @@
 [versions]
 
 kotlinJvm = "1.8.21"
-intellijPlgn = "1.13.3"
+intellijPlgn = "1.17.4"
+arrowKt = "1.2.4"
 
 [libraries]
+
+kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test" }
+arrow-core = { group = "io.arrow-kt", name = "arrow-core", version.ref = "arrowKt" }
 
 [plugins]
 

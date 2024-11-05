@@ -7,6 +7,8 @@ plugins {
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
+java.toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+
 repositories {
     mavenCentral()
 }
@@ -20,16 +22,12 @@ intellij {
     plugins.set(listOf(/* Plugin Dependencies */))
 }
 
-tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
-    }
-    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "17"
-    }
+dependencies {
+    implementation(libs.arrow.core)
+    testImplementation(libs.kotlin.test)
+}
 
+tasks {
     patchPluginXml {
         sinceBuild.set("222")
         untilBuild.set("243.*")
@@ -43,5 +41,9 @@ tasks {
 
     publishPlugin {
         token.set(System.getenv("PUBLISH_TOKEN"))
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }
